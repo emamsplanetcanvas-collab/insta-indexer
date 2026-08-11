@@ -1,7 +1,9 @@
 import os
 import json
+import sqlite3
+import hashlib
+import time
 from flask import Flask, request, redirect, render_template_string
-import hashlib, time
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
@@ -18,8 +20,41 @@ credentials = service_account.Credentials.from_service_account_info(
 )
 indexing_service = build('indexing', 'v3', credentials=credentials)
 
-redirect_map = {}
+# ========== DATABASE SETUP ==========
+DB_NAME = 'redirects.db'
 
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS redirects
+                 (short_code TEXT PRIMARY KEY, insta_url TEXT)''')
+    conn.commit()
+    conn.close()
+
+def save_redirect(short_code, insta_url):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO redirects (short_code, insta_url) VALUES (?, ?)',
+              (short_code, insta_url))
+    conn.commit()
+    conn.close()
+
+def get_redirect(short_code):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('SELECT insta_url FROM redirects WHERE short_code=?', (short_code,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+init_db()
+
+# ========== GOOGLE VERIFICATION ROUTE ==========
+@app.route('/google9050b88856403157.html')
+def google_verify():
+    return 'google-site-verification: google9050b88856403157.html'
+
+# ========== MAIN ROUTES ==========
 @app.route('/')
 def home():
     return render_template_string('''
@@ -39,12 +74,11 @@ def submit():
         return "শুধুমাত্র Instagram পোস্ট URL দিন।", 400
 
     unique = hashlib.md5((insta_url + str(time.time())).encode()).hexdigest()[:8]
-    short_path = f"go/{unique}"
+    short_code = unique
 
-    # আপনার ডোমেইন
-    my_redirect_url = f"https://www.trevomo.com/{short_path}"
+    save_redirect(short_code, insta_url)
 
-    redirect_map[short_path] = insta_url
+    my_redirect_url = f"https://www.trevomo.com/go/{short_code}"
 
     body = {'url': my_redirect_url, 'type': 'URL_UPDATED'}
     try:
@@ -61,8 +95,7 @@ def submit():
 
 @app.route('/go/<code>')
 def handle_redirect(code):
-    key = f"go/{code}"
-    target = redirect_map.get(key)
+    target = get_redirect(code)
     if target:
         resp = redirect(target, code=301)
         resp.headers['Cache-Control'] = 'no-cache'
@@ -95,15 +128,13 @@ https://www.instagram.com/p/CODE2/"></textarea><br><br>
                     } catch (err) {
                         statusDiv.innerHTML += `${i+1}. ${link} → ❌ ভুল: ${err.message}<br>`;
                     }
-                    // ০.৫ সেকেন্ড অপেক্ষা (API রেট লিমিট)
+                    // API rate limit respect
                     await new Promise(r => setTimeout(r, 500));
                 }
                 statusDiv.innerHTML += `<br><b>সব শেষ! মোট ${links.length} টি লিংক জমা দেওয়া হয়েছে।</b>`;
             }
         </script>
     ''')
-@app.route('/google9050b88856403157.html')
-def google_verify():
-    return 'google-site-verification: google9050b88856403157.html'
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
