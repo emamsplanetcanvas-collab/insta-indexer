@@ -102,6 +102,8 @@ https://www.instagram.com/p/CODE2/"></textarea><br><br>
             }
         </script>
     ''')
-
+@app.route('/google9050b88856403157.html')
+def google_verify():
+    return 'google-site-verification: google9050b88856403157.html'
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
