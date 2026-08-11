@@ -1,8 +1,6 @@
 import os
 import json
-import sqlite3
-import hashlib
-import time
+import re
 from flask import Flask, request, redirect, render_template_string
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -20,41 +18,16 @@ credentials = service_account.Credentials.from_service_account_info(
 )
 indexing_service = build('indexing', 'v3', credentials=credentials)
 
-# ========== DATABASE SETUP ==========
-DB_NAME = 'redirects.db'
+def extract_post_id(url):
+    """ইনস্টাগ্রাম পোস্ট URL থেকে শর্টকোড (যেমন CxYzAbCd) বের করে"""
+    match = re.search(r'instagram\.com/p/([A-Za-z0-9_-]+)/?', url)
+    return match.group(1) if match else None
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS redirects
-                 (short_code TEXT PRIMARY KEY, insta_url TEXT)''')
-    conn.commit()
-    conn.close()
-
-def save_redirect(short_code, insta_url):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('INSERT OR REPLACE INTO redirects (short_code, insta_url) VALUES (?, ?)',
-              (short_code, insta_url))
-    conn.commit()
-    conn.close()
-
-def get_redirect(short_code):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('SELECT insta_url FROM redirects WHERE short_code=?', (short_code,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else None
-
-init_db()
-
-# ========== GOOGLE VERIFICATION ROUTE ==========
+# Google Search Console verification route
 @app.route('/google9050b88856403157.html')
 def google_verify():
     return 'google-site-verification: google9050b88856403157.html'
 
-# ========== MAIN ROUTES ==========
 @app.route('/')
 def home():
     return render_template_string('''
@@ -70,15 +43,12 @@ def home():
 @app.route('/submit', methods=['POST'])
 def submit():
     insta_url = request.form['insta_url'].strip()
-    if not insta_url.startswith('https://www.instagram.com/p/'):
-        return "শুধুমাত্র Instagram পোস্ট URL দিন।", 400
+    post_id = extract_post_id(insta_url)
+    if not post_id:
+        return "ইনস্টাগ্রাম পোস্ট URL সঠিক নয়।", 400
 
-    unique = hashlib.md5((insta_url + str(time.time())).encode()).hexdigest()[:8]
-    short_code = unique
-
-    save_redirect(short_code, insta_url)
-
-    my_redirect_url = f"https://www.trevomo.com/go/{short_code}"
+    # সরাসরি পোস্টের ID দিয়ে আমাদের URL
+    my_redirect_url = f"https://www.trevomo.com/go/{post_id}"
 
     body = {'url': my_redirect_url, 'type': 'URL_UPDATED'}
     try:
@@ -95,14 +65,13 @@ def submit():
 
 @app.route('/go/<code>')
 def handle_redirect(code):
-    target = get_redirect(code)
-    if target:
-        resp = redirect(target, code=301)
-        resp.headers['Cache-Control'] = 'no-cache'
-        return resp
-    return "পাওয়া যায়নি", 404
+    """সরাসরি ইনস্টাগ্রামের পোস্ট URL-এ 301 রিডাইরেক্ট"""
+    target_url = f"https://www.instagram.com/p/{code}/"
+    resp = redirect(target_url, code=301)
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
-# ---------------- বাল্ক সাবমিশন পেইজ ----------------
+# বাল্ক সাবমিশন পেইজ
 @app.route('/bulk')
 def bulk_form():
     return render_template_string('''
@@ -128,7 +97,6 @@ https://www.instagram.com/p/CODE2/"></textarea><br><br>
                     } catch (err) {
                         statusDiv.innerHTML += `${i+1}. ${link} → ❌ ভুল: ${err.message}<br>`;
                     }
-                    // API rate limit respect
                     await new Promise(r => setTimeout(r, 500));
                 }
                 statusDiv.innerHTML += `<br><b>সব শেষ! মোট ${links.length} টি লিংক জমা দেওয়া হয়েছে।</b>`;
