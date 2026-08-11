@@ -42,7 +42,7 @@ def submit():
     short_path = f"go/{unique}"
 
     # আপনার ডোমেইন
-    my_redirect_url = f"https://trevomo.com/{short_path}"
+    my_redirect_url = f"https://www.trevomo.com/{short_path}"
 
     redirect_map[short_path] = insta_url
 
