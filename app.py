@@ -7,14 +7,13 @@ from googleapiclient.discovery import build
 
 app = Flask(__name__)
 
-# Google credentials from environment variable
+# Google credentials from Render environment variable
 google_creds_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 if not google_creds_json:
     raise Exception("GOOGLE_APPLICATION_CREDENTIALS environment variable not set!")
 info = json.loads(google_creds_json)
 credentials = service_account.Credentials.from_service_account_info(
-    info,
-    scopes=['https://www.googleapis.com/auth/indexing']
+    info, scopes=['https://www.googleapis.com/auth/indexing']
 )
 indexing_service = build('indexing', 'v3', credentials=credentials)
 
@@ -23,23 +22,25 @@ def extract_post_id(url):
     match = re.search(r'instagram\.com/p/([A-Za-z0-9_-]+)/?', url)
     return match.group(1) if match else None
 
-# Google Search Console verification route
+# Google Search Console verification route (unchanged)
 @app.route('/google9050b88856403157.html')
 def google_verify():
     return 'google-site-verification: google9050b88856403157.html'
 
+# Home with form
 @app.route('/')
 def home():
     return render_template_string('''
-        <h1>ইনস্টা ইনডেক্সার</h1>
+        <h1>ইনস্টা ইনডেক্সার (ক্যানোনিকাল)</h1>
         <form action="/submit" method="post">
-            <input type="text" name="insta_url" placeholder="ইনস্টাগ্রাম পোস্ট লিংক দিন" required style="width:400px">
+            <input type="text" name="insta_url" placeholder="ইনস্টাগ্রাম পোস্ট URL দিন" required style="width:400px">
             <button type="submit">Index Now</button>
         </form>
         <p>{{ message }}</p>
-        <p><a href="/bulk">একসাথে অনেক লিংক জমা দিতে চান? (বাল্ক সাবমিশন)</a></p>
+        <p><a href="/bulk">বাল্ক সাবমিশন</a></p>
     ''', message=request.args.get('message',''))
 
+# Submit handler
 @app.route('/submit', methods=['POST'])
 def submit():
     insta_url = request.form['insta_url'].strip()
@@ -47,36 +48,49 @@ def submit():
     if not post_id:
         return "ইনস্টাগ্রাম পোস্ট URL সঠিক নয়।", 400
 
-    # সরাসরি পোস্টের ID দিয়ে আমাদের URL
-    my_redirect_url = f"https://www.trevomo.com/go/{post_id}"
+    # ক্যানোনিকাল পেজের URL (আপনার ডোমেইনে)
+    page_url = f"https://www.trevomo.com/c/{post_id}"
 
-    body = {'url': my_redirect_url, 'type': 'URL_UPDATED'}
+    # Indexing API-তে জমা
+    body = {'url': page_url, 'type': 'URL_UPDATED'}
     try:
         indexing_service.urlNotifications().publish(body=body).execute()
-        msg = f"✅ গুগলে জমা হয়েছে: {my_redirect_url}"
+        msg = f"✅ গুগলে জমা হয়েছে: {page_url}"
     except Exception as e:
-        msg = f"⚠️ API এরর: {str(e)}<br>তবে রিডাইরেক্ট তৈরি: <a href='{my_redirect_url}'>{my_redirect_url}</a>"
+        msg = f"⚠️ API এরর: {str(e)}"
 
     return render_template_string('''
-        <h1>ইনস্টা ইনডেক্সার</h1>
+        <h1>জমা হয়েছে</h1>
         <p>{{ message|safe }}</p>
-        <a href="/">আরেকটি লিংক দিন</a>
+        <a href="/">আরেকটি দিন</a>
     ''', message=msg)
 
-@app.route('/go/<code>')
-def handle_redirect(code):
-    """সরাসরি ইনস্টাগ্রামের পোস্ট URL-এ 301 রিডাইরেক্ট"""
-    target_url = f"https://www.instagram.com/p/{code}/"
-    resp = redirect(target_url, code=301)
-    resp.headers['Cache-Control'] = 'no-cache'
-    return resp
+# ক্যানোনিকাল পেজ (দেখাবে না কাউকে, শুধু গুগলের জন্য)
+@app.route('/c/<slug>')
+def canonical_page(slug):
+    insta_url = f"https://www.instagram.com/p/{slug}/"
+    # পেজটি অত্যন্ত সরল, কোনো কন্টেন্ট নয়, শুধু ক্যানোনিকাল ট্যাগ ও মেটা রিফ্রেশ
+    return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <link rel="canonical" href="{{ target }}" />
+            <meta http-equiv="refresh" content="0; url={{ target }}" />
+            <title>Instagram Post</title>
+        </head>
+        <body style="text-align:center; padding:50px; font-family:Arial;">
+            <p>Redirecting to Instagram... <a href="{{ target }}">Click here</a> if not redirected.</p>
+        </body>
+        </html>
+    ''', target=insta_url)
 
-# বাল্ক সাবমিশন পেইজ
+# বাল্ক সাবমিশন পেজ (আগের মতোই)
 @app.route('/bulk')
 def bulk_form():
     return render_template_string('''
         <h1>বাল্ক ইনস্টাগ্রাম লিংক জমা দিন</h1>
-        <p>প্রতি লাইনে একটি করে ইনস্টাগ্রাম পোস্ট URL পেস্ট করুন (সর্বোচ্চ ২০০টি)</p>
+        <p>প্রতি লাইনে একটি করে পোস্ট URL পেস্ট করুন (সর্বোচ্চ ২০০টি)</p>
         <textarea id="links" rows="15" cols="80" placeholder="https://www.instagram.com/p/CODE1/
 https://www.instagram.com/p/CODE2/"></textarea><br><br>
         <button onclick="startBulk()">সবগুলো জমা করো</button>
