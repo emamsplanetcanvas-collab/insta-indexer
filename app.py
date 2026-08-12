@@ -117,6 +117,19 @@ https://www.instagram.com/p/CODE2/"></textarea><br><br>
             }
         </script>
     ''')
-
+@app.route('/flights')
+def flights():
+    return render_template_string('''
+        <html>
+        <head>
+            <title>Flights - Trevomo</title>
+        </head>
+        <body style="font-family:Arial; text-align:center; padding:50px;">
+            <h1>Welcome to Trevomo Flights</h1>
+            <p>Find the best flight deals here.</p>
+            <p>Contact: support@trevomo.com</p>
+        </body>
+        </html>
+    ''')
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
