@@ -131,5 +131,8 @@ def flights():
         </body>
         </html>
     ''')
+    @app.route('/robots.txt')
+def robots_txt():
+    return "User-agent: *\nAllow: /", 200, {'Content-Type': 'text/plain'}
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
