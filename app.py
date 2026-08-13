@@ -69,7 +69,7 @@ def submit():
 @app.route('/c/<slug>')
 def canonical_page(slug):
     insta_url = f"https://www.instagram.com/p/{slug}/"
-    # পেজটি অত্যন্ত সরল, কোনো কন্টেন্ট নয়, শুধু ক্যানোনিকাল ট্যাগ ও মেটা রিফ্রেশ
+    # পেজটি অত্যন্ত সরল, কোনো কন্টেন্ট নেই, শুধু ক্যানোনিকাল ট্যাগ ও মেটা রিফ্রেশ
     return render_template_string('''
         <!DOCTYPE html>
         <html>
@@ -117,6 +117,8 @@ https://www.instagram.com/p/CODE2/"></textarea><br><br>
             }
         </script>
     ''')
+
+# Flights landing page (simple)
 @app.route('/flights')
 def flights():
     return render_template_string('''
@@ -131,8 +133,11 @@ def flights():
         </body>
         </html>
     ''')
-    @app.route('/robots.txt')
+
+# robots.txt to allow all crawlers
+@app.route('/robots.txt')
 def robots_txt():
-    return "User-agent: *\nAllow: /", 200, {'Content-Type': 'text/plain'}
+    return "User-agent: *\nAllow: /\n", 200, {'Content-Type': 'text/plain'}
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
