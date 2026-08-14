@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 
 # Google credentials from Render environment variable
 google_creds_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
